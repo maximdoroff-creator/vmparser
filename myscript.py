@@ -46,7 +46,14 @@ if st.button("🚀 Запустить поиск активных пользов
         await client.disconnect()
         return list(active_users.values())
 
-    results = asyncio.run(run_parser())
+        try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
+    results = loop.run_until_complete(run_parser(target_url, days_to_check, msg_limit))
+
     
     if results:
         df = pd.DataFrame(results)
