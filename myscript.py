@@ -29,7 +29,8 @@ def load_db():
     except: return default_db
 
 def save_db(db):
-    with open(DB_FILE, "w", encoding="utf-8") as f: json.dump(db, f, indent=4, ensure_ascii=False)
+    with open(DB_FILE, "w", encoding="utf-8") as f:
+        json.dump(db, f, indent=4, ensure_ascii=False)
 
 if 'db' not in st.session_state: st.session_state.db = load_db()
 
@@ -42,40 +43,36 @@ if 'auth' not in st.session_state:
         else: st.session_state.auth = False
     else: st.session_state.auth = False
 
-# --- СТИЛИЗАЦИЯ (PREMIUM DARK) ---
+# --- СТИЛИЗАЦИЯ (ФИКС ЦВЕТОВ И КНОПОК) ---
 st.markdown("""
     <style>
     [data-testid="collapsedControl"] { display: none; }
     .stApp { background-color: #0d111b; color: #ffffff !important; }
     
     /* Логотип */
-    .brand-vm { color: #007BFF; font-weight: 900; font-family: 'Arial Black'; }
-    .brand-models { color: #ffffff; font-weight: 900; }
+    .brand-vm { color: #007BFF !important; font-weight: 900; font-family: 'Arial Black'; }
+    .brand-models { color: #ffffff !important; font-weight: 900; }
     
-    /* Статусы */
-    .status-on { color: #3fb950 !important; font-weight: bold; text-transform: uppercase; }
-    .status-off { color: #f85149 !important; font-weight: bold; text-transform: uppercase; }
+    /* Статусы ярко-зеленый и ярко-красный */
+    .status-on { color: #00ff00 !important; font-weight: bold; text-shadow: 0 0 5px rgba(0,255,0,0.3); }
+    .status-off { color: #ff3333 !important; font-weight: bold; text-shadow: 0 0 5px rgba(255,51,51,0.3); }
     
-    /* Карточки Dashboard */
+    /* Карточки */
     .stat-card { background: #161b2c; border: 1px solid #232d45; border-radius: 12px; padding: 20px; text-align: center; }
     .stat-label { color: #8a8d9b; font-size: 11px; text-transform: uppercase; font-weight: bold; margin-bottom: 8px; }
     .stat-value { font-size: 18px; font-weight: 800; }
 
-    /* Кнопки (Синий акцент только при наведении или действии) */
+    /* ГАРАНТИРОВАННО СИНЯЯ КНОПКА ДЛЯ ВСЕГО */
     div.stButton > button, div.stDownloadButton > button {
-        background: #1f2937 !important; color: white !important; 
-        border: 1px solid #374151 !important; border-radius: 8px !important;
+        background: linear-gradient(90deg, #007BFF 0%, #0056b3 100%) !important;
+        color: white !important; border: none !important; border-radius: 8px !important;
         padding: 10px 20px !important; font-weight: 600 !important; width: 100% !important;
     }
     div.stButton > button:hover, div.stDownloadButton > button:hover {
-        background: #007BFF !important; border-color: #007BFF !important; transform: translateY(-1px);
+        background: #007BFF !important; transform: translateY(-1px); box-shadow: 0 4px 15px rgba(0,123,255,0.4);
     }
     
-    /* Табы */
-    .stTabs [data-baseweb="tab-list"] { background: transparent; gap: 15px; }
     .stTabs [aria-selected="true"] { color: #007BFF !important; border-bottom-color: #007BFF !important; }
-    
-    /* Поля ввода */
     .stTextInput input { background-color: #1a1a1a !important; border: 1px solid #333 !important; color: white !important; }
     </style>
     """, unsafe_allow_html=True)
@@ -106,14 +103,13 @@ async def run_live_parser(session_str, target, days, method, placeholder):
 
 # --- ИНТЕРФЕЙС ---
 if not st.session_state.get('auth'):
-    # КРАСИВАЯ СТРАНИЦА ВХОДА
     st.markdown('<div style="text-align:center; padding-top:80px; margin-bottom:30px;"><span class="brand-vm" style="font-size:50px;">VM</span> <span class="brand-models" style="font-size:50px;">Models</span></div>', unsafe_allow_html=True)
     _, col_login, _ = st.columns([1.5, 1, 1.5])
     with col_login:
         l_in = st.text_input("Username").strip()
         p_in = st.text_input("Password", type="password").strip()
         if st.button("LOGIN TO SYSTEM"):
-            st.session_state.db = load_db()
+            st.session_state.db = load_db() # Перечитываем базу
             user = next((x for x in st.session_state.db["users"] if x["login"] == l_in and x["pass"] == p_in), None)
             if user:
                 st.session_state.auth, st.session_state.user = True, user
@@ -122,10 +118,8 @@ if not st.session_state.get('auth'):
             else: st.error("Access Denied")
 else:
     u = st.session_state.user
-    # ХЕДЕР
     st.markdown(f'<div style="display:flex; justify-content:space-between; align-items:center; padding:15px; border-bottom:1px solid #232d45; margin-bottom:20px;"><div style="font-size:24px;"><span class="brand-vm">VM</span> <span class="brand-models">Models</span></div><div style="color:#8a8d9b; font-size:14px;">{u.get("role")}: <b>{u["login"]}</b></div></div>', unsafe_allow_html=True)
 
-    # ДАШБОРД (ТРИ КАРТОЧКИ)
     tg_name = u.get("tg_name", "")
     tg_stat_html = f'<span class="status-on">ПОДКЛЮЧЕН</span><br><small style="color:#8a8d9b;">{tg_name}</small>' if u.get("session") else '<span class="status-off">НЕ ПОДКЛЮЧЕН</span>'
     
@@ -152,26 +146,27 @@ else:
             
             if st.button("🚀 ЗАПУСТИТЬ ПРОЦЕСС"):
                 if target:
-                    if u.get('limit', 0) >= 50: st.error("Дневной лимит (50) исчерпан!")
+                    if u.get('limit', 0) >= 50: st.error("Дневной лимит исчерпан!")
                     else:
                         ph = st.empty()
-                        loop = asyncio.new_event_loop(); asyncio.set_event_loop(loop)
+                        try:
+                            loop = asyncio.get_event_loop()
+                        except:
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
                         data = loop.run_until_complete(run_live_parser(sess, target, days_v, method, ph))
                         if data:
                             for db_u in st.session_state.db["users"]:
-                                if db_u["login"] == u["login"]: 
-                                    db_u["limit"] = db_u.get("limit", 0) + 1
-                                    st.session_state.user["limit"] = db_u["limit"]
+                                if db_u["login"] == u["login"]: db_u["limit"] += 1
+                                st.session_state.user["limit"] = db_u["limit"]
                             st.session_state.db["history"].append({"user": u["login"], "target": target, "count": len(data), "date": datetime.now().strftime("%d.%m %H:%M")})
                             save_db(st.session_state.db)
-                            st.write("---")
                             txt_data = "\n".join([i['ЮЗЕРНЕЙМ'] for i in data if i['ЮЗЕРНЕЙМ'] != "---"])
                             st.download_button("📥 СКАЧАТЬ В БЛОКНОТ (@)", txt_data, "usernames.txt")
-                            st.success("Парсинг успешно завершен!")
             st.markdown('</div>', unsafe_allow_html=True)
 
     with tabs[1]: # АККАУНТ
-        st.subheader("Управление Telegram")
+        st.subheader("Подключение Telegram")
         if u["role"] == "Админ": st.success(f"✅ Админ-аккаунт {u.get('tg_name')} активен автоматически.")
         elif u.get("session"):
             st.success(f"✅ Подключено: {u.get('tg_name')}")
@@ -180,16 +175,19 @@ else:
                     if db_u["login"] == u["login"]: db_u["session"], db_u["tg_name"] = "", ""
                 save_db(st.session_state.db); st.rerun()
         else:
-            st.info("Авторизуйте рабочий Telegram для начала сбора.")
-            phone = st.text_input("Ваш номер телефона (+...)")
+            phone = st.text_input("Номер телефона (+...)")
             if st.button("Прислать код подтверждения"):
                 async def get_c():
                     c = TelegramClient(StringSession(), API_ID_DEFAULT, API_HASH_DEFAULT); await c.connect()
                     res = await c.send_code_request(phone); return c, res.phone_code_hash
-                loop = asyncio.new_event_loop(); asyncio.set_event_loop(loop)
+                try:
+                    loop = asyncio.get_event_loop()
+                except:
+                    loop = asyncio.new_event_loop(); asyncio.set_event_loop(loop)
                 st.session_state.temp_client, st.session_state.temp_hash = loop.run_until_complete(get_c())
-                st.info("Код отправлен в ваш Telegram!")
-            t_code = st.text_input("Код из сообщения")
+                st.info("Код отправлен!")
+            
+            t_code = st.text_input("Код из ТГ")
             if st.button("ПОДТВЕРДИТЬ И СОХРАНИТЬ"):
                 async def finish():
                     await st.session_state.temp_client.sign_in(phone, t_code, phone_code_hash=st.session_state.temp_hash)
@@ -199,13 +197,14 @@ else:
                     for db_u in st.session_state.db["users"]:
                         if db_u["login"] == u["login"]: db_u["session"], db_u["tg_name"] = s_str, uname
                     save_db(st.session_state.db)
-                loop = asyncio.new_event_loop(); asyncio.set_event_loop(loop)
+                try: loop = asyncio.get_event_loop()
+                except: loop = asyncio.new_event_loop(); asyncio.set_event_loop(loop)
                 loop.run_until_complete(finish()); st.rerun()
 
     with tabs[2]: # ИСТОРИЯ
         my_h = [h for h in st.session_state.db["history"] if h["user"] == u["login"]]
         if my_h: st.table(pd.DataFrame(my_h)[::-1])
-        else: st.write("История сборов пуста.")
+        else: st.write("История пуста.")
 
     with tabs[3]: # КОМАНДА
         if u["role"] == "Админ":
@@ -215,16 +214,15 @@ else:
                 nl, np = st.text_input("Логин"), st.text_input("Пароль")
                 if st.button("Создать доступ"):
                     st.session_state.db["users"].append({"login": nl, "pass": np, "role": "Работник", "session": "", "tg_name": "", "limit": 0})
-                    save_db(st.session_state.db); st.success(f"Доступ для {nl} открыт!"); st.rerun()
+                    save_db(st.session_state.db); st.success("Готово!"); st.rerun()
             with col2:
-                st.subheader("Управление")
                 for i, worker in enumerate(st.session_state.db["users"]):
                     if worker["role"] != "Админ":
                         with st.expander(f"👤 {worker['login']} ({worker.get('limit',0)}/50)"):
-                            if st.button("Закрыть доступ", key=f"del_{i}"):
+                            if st.button("Удалить", key=f"del_{i}"):
                                 st.session_state.db["users"].pop(i); save_db(st.session_state.db); st.rerun()
-        else: st.info("Раздел доступен только для Администратора.")
 
     with tabs[4]: # ВЫХОД
-        if st.button("ПОДТВЕРДИТЬ ВЫХОД ИЗ СИСТЕМЫ"):
+        if st.button("ВЫЙТИ ИЗ СИСТЕМЫ"):
             st.query_params.clear(); st.session_state.clear(); st.rerun()
+
