@@ -1,3 +1,4 @@
+# Финальное обновление интерфейса 2.0
 import streamlit as st
 import asyncio
 import pandas as pd
