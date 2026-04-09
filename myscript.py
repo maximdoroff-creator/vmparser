@@ -14,7 +14,6 @@ if not os.path.exists(AVATAR_DIR):
 
 st.set_page_config(page_title="TG Scout Pro 2.5", layout="wide")
 
-# База пользователей
 if 'users_db' not in st.session_state:
     st.session_state.users_db = [
         {"login": "Admin.Maksym", "pass": "Maksym777", "role": "Админ"},
@@ -37,7 +36,6 @@ async def run_parser(target, days, limit, method):
             return
         seen_ids.add(u.id)
         
-        # Загрузка фото
         avatar_path = "https://flaticon.com"
         if u.photo:
             photo_name = f"{u.id}.jpg"
@@ -51,7 +49,6 @@ async def run_parser(target, days, limit, method):
                 avatar_path = local_path
         
         un = u.username if u.username else ""
-        # Прямая ссылка для открытия приложения
         tg_link = f"tg://resolve?domain={un}" if un else f"tg://user?id={u.id}"
         
         results.append({
@@ -61,35 +58,34 @@ async def run_parser(target, days, limit, method):
             "Ссылка": tg_link
         })
 
-    if "Все" in method:
-        # Глубокий поиск по алфавиту (обход лимита 10к)
-        alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
-        prog = st.progress(0)
-        status = st.empty()
-        for i, char in enumerate(alphabet):
-            status.text(f"Сбор по символу: {char} (Найдено: {len(results)})")
-            prog.progress((i + 1) / len(alphabet))
-            try:
-                participants = await client(functions.channels.GetParticipantsRequest(
-                    channel=target,
-                    filter=types.ChannelParticipantsSearch(char),
-                    offset=0, limit=1000, hash=0
-                ))
-                for u in participants.users:
-                    await process_user(u)
-            except: continue
-        status.empty()
-        prog.empty()
-    else:
-        # Сбор активных по периодам
-        limit_date = datetime.now(timezone.utc) - timedelta(days=days)
-        async for m in client.iter_messages(target, limit=limit):
-            if m.date < limit_date: break
-            if m.sender_id:
-                s = await m.get_sender()
-                await process_user(s)
-    
-    await client.disconnect()
+    try:
+        if "Все" in method:
+            alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
+            p_bar = st.progress(0)
+            status = st.empty()
+            for i, char in enumerate(alphabet):
+                status.text(f"Поиск по символу: {char} (Найдено: {len(results)})")
+                p_bar.progress((i + 1) / len(alphabet))
+                try:
+                    participants = await client(functions.channels.GetParticipantsRequest(
+                        channel=target,
+                        filter=types.ChannelParticipantsSearch(char),
+                        offset=0, limit=1000, hash=0
+                    ))
+                    for u in participants.users:
+                        await process_user(u)
+                except: continue
+            status.empty()
+            p_bar.empty()
+        else:
+            limit_date = datetime.now(timezone.utc) - timedelta(days=days)
+            async for m in client.iter_messages(target, limit=limit):
+                if m.date < limit_date: break
+                if m.sender_id:
+                    s = await m.get_sender()
+                    await process_user(s)
+    finally:
+        await client.disconnect()
     return results
 
 # --- ИНТЕРФЕЙС ---
@@ -106,24 +102,29 @@ if not st.session_state.auth:
         else:
             st.error("Ошибка доступа")
 else:
-    tabs = st.tabs(["ИНСТРУКЦИЯ", "⚡️ СБОР", "📂 ИСТОРИЯ", "👥 КОМАНДА"])
+    # Уникальные вкладки
+    t_list = ["ИНСТРУКЦИЯ", "⚡️ СБОР", "📂 ИСТОРИЯ"]
+    if st.session_state.user_data["role"] == "Админ":
+        t_list.append("👥 КОМАНДА")
+    
+    tabs = st.tabs(t_list)
 
-    with tabs[1]:
+    with tabs[1]: # СБОР
         st.subheader("Настройки поиска")
         col1, col2 = st.columns(2)
         with col1:
-            method = st.radio("Тип сбора:", ["Все участники (Глубокий)", "Активные по периоду"], horizontal=True)
-            target = st.text_input("Ссылка на группу (например: poehalisnami_de)")
+            method = st.radio("Тип сбора:", ["Все участники (Максимум)", "Активные по периоду"], key="method_radio")
+            target = st.text_input("Ссылка на группу (например: poehalisnami_de)", key="target_input")
         with col2:
             if "Активные" in method:
-                period = st.selectbox("Выберите период:", ["3 дня", "Неделя", "Месяц", "3 месяца"])
+                period = st.selectbox("Выберите период:", ["3 дня", "Неделя", "Месяц", "3 месяца"], key="period_select")
                 p_map = {"3 дня": 3, "Неделя": 7, "Месяц": 30, "3 месяца": 90}
                 days_val = p_map[period]
-                limit_msg = st.number_input("Лимит сообщений", 100, 20000, 2000)
+                limit_msg = st.number_input("Лимит сообщений", 100, 20000, 2000, key="limit_input")
             else:
                 days_val, limit_msg = 0, 0
         
-        if st.button("🚀 ЗАПУСТИТЬ"):
+        if st.button("🚀 ЗАПУСТИТЬ", key="start_btn"):
             if not target:
                 st.warning("Введите ссылку!")
             else:
@@ -143,33 +144,29 @@ else:
                             },
                             use_container_width=True
                         )
-                        st.download_button("📥 Скачать CSV", df.to_csv(index=False).encode('utf-8'), "data.csv")
+                        st.download_button("📥 Скачать CSV", df.to_csv(index=False).encode('utf-8'), "data.csv", key="download_csv")
                     else:
                         st.warning("Ничего не найдено.")
 
-    # Вкладка КОМАНДА
     if st.session_state.user_data["role"] == "Админ":
-        with tabs[3]:
-            cl, cr = st.columns([1, 2])
+        with tabs[-1]: # КОМАНДА
+            cl, cr = st.columns(2)
             with cl:
                 st.subheader("+ Добавить")
-                nl, np = st.text_input("ЛОГИН "), st.text_input("ПАРОЛЬ ")
-                nr = st.selectbox("РОЛЬ", ["Работник", "Админ"])
-                if st.button("Создать"):
+                nl = st.text_input("НОВЫЙ ЛОГИН")
+                np = st.text_input("НОВЫЙ ПАРОЛЬ")
+                nr = st.selectbox("РОЛЬ", ["Работник", "Админ"], key="role_select")
+                if st.button("Создать", key="create_user_btn"):
                     st.session_state.users_db.append({"login": nl, "pass": np, "role": nr})
                     st.success("Готово!")
                     st.rerun()
             with cr:
-                st.subheader("Команда")
+                st.subheader("Список команды")
                 for u in st.session_state.users_db:
                     st.write(f"👤 **{u['login']}** ({u['role']})")
 
     with st.sidebar:
         st.write(f"Вы: **{st.session_state.user_data['login']}**")
-        if st.button("Выйти"):
-            st.session_state.auth = False
-            st.rerun()
-
-        if st.button("Выйти"):
+        if st.button("Выйти", key="logout_sidebar"):
             st.session_state.auth = False
             st.rerun()
