@@ -46,20 +46,20 @@ if st.button("🚀 Запустить поиск активных пользов
         await client.disconnect()
         return list(active_users.values())
 
+        if st.button("🚀 Запустить поиск"):
         try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+                loop = asyncio.get_event_loop()
+        except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
     
-    results = loop.run_until_complete(run_parser(target_url, days_to_check, msg_limit))
+        results = loop.run_until_complete(run_parser(target_url, days_to_check, msg_limit))
 
-    
-    if results:
-        df = pd.DataFrame(results)
-        st.success(f"Найдено активных: {len(df)}")
-        # Делаем колонку со ссылками кликабельной
-        st.dataframe(df, column_config={"Ссылка на профиль": st.column_config.LinkColumn()})
-        st.download_button("Скачать результат Excel", df.to_csv(index=False).encode('utf-16'), "active_users.csv")
-    else:
-        st.warning("Активных пользователей не найдено.")
+        if results:
+                df = pd.DataFrame(results)
+                st.success(f"Найдено активных: {len(df)}")
+                # Делаем колонку со ссылками кликабельной
+                st.dataframe(df, column_config={"Ссылка на профиль": st.column_config.LinkColumn()})
+                st.download_button("Скачать результат Excel", df.to_csv(index=False).encode('utf-16'), "active_users.csv")
+        else:
+                st.warning("Активных пользователей не найдено.")
