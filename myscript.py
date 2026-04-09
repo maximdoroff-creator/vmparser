@@ -10,51 +10,42 @@ from datetime import datetime, timedelta, timezone
 # --- КОНФИГУРАЦИЯ ---
 API_ID = 34321415 
 API_HASH = 'a858399e90e04f5992a97096b614f31e'
-# Твоя вечная сессия уже вшита сюда:
 MY_SESSION_STRING = '1ApWapzMBu6a2yrYGwEl4SmIajfYwWFcdt93DPZJADeUU4mA61FcGqC9v_PqjQZm0zMQC3OZFXKLQzM_3_D15YlGyk4Z4s64oPq_dF2FXIW67-dTreso3mfFl2v3BILmO_PKoR_iBMZ5aYCUM_DY9rJcWA2_xhQ1RSmUc1HxzD9L1aDF7fiHAWcLiduwJFSOYDSuWTINIXPIIMsmqtxGxeNFM2sbgWJIFkBhGe0I4g_YaSlcV342H53kS0JUJrS2IGaTI6KgqQ6XymA9MdtjjjHRWiqb4xLRTBqyXgDvAFnnsnbegH8nMEkwudAyEa-Y-O5oCP4WJfS220InB3tNJFe8u9_qXbJw='
 
-AVATAR_DIR = "avatars"
 LIMIT_FILE = "usage_limit.json"
 MAX_DAILY_PARSES = 50
 
-if not os.path.exists(AVATAR_DIR): 
-    os.makedirs(AVATAR_DIR)
+st.set_page_config(page_title="VM Models | Pro Scout", layout="wide")
 
-st.set_page_config(page_title="VM Models | Premium Scout", layout="wide")
-
-# --- PREMIUM UI (БРЕНДИНГ) ---
+# --- ULTIMATE DARK UI ---
 st.markdown(f"""
     <style>
-    .stApp {{ background-color: #050505; color: #FFFFFF; }}
+    .stApp {{ background-color: #000000; color: #FFFFFF; }}
     
-    /* Логотип VM Models */
-    .logo-box {{ text-align: center; padding: 30px 0; }}
-    .vm-text {{ color: #007BFF; font-size: 60px; font-weight: 900; font-family: 'Arial Black'; text-shadow: 0 0 15px rgba(0,123,255,0.4); }}
-    .models-text {{ color: #FFFFFF; font-size: 60px; font-weight: 900; font-family: 'Arial Black'; }}
+    /* Логотип */
+    .logo-box {{ text-align: center; padding: 20px 0; margin-bottom: 20px; }}
+    .vm-text {{ color: #007BFF; font-size: 50px; font-weight: 900; font-family: 'Arial Black'; }}
+    .models-text {{ color: #FFFFFF; font-size: 50px; font-weight: 900; font-family: 'Arial Black'; }}
     
-    /* Стилизация контейнеров */
-    .stFieldBlock {{
-        background: #111111;
-        padding: 20px;
-        border-radius: 15px;
-        border: 1px solid #222;
-        margin-bottom: 20px;
-    }}
+    /* Читаемость текста */
+    label, p, .stMarkdown {{ color: #FFFFFF !important; font-weight: 500 !important; font-size: 16px !important; }}
+    .stRadio label {{ color: #FFFFFF !important; }}
     
-    /* Фирменная синяя кнопка */
+    /* Кнопка */
     div.stButton > button {{
-        background: linear-gradient(135deg, #007BFF 0%, #004080 100%);
-        color: white; border: none; border-radius: 10px;
-        padding: 18px; font-size: 18px; font-weight: bold;
-        text-transform: uppercase; transition: 0.3s; width: 100%;
+        background: linear-gradient(90deg, #007BFF 0%, #004080 100%);
+        color: white; border-radius: 8px; padding: 15px; font-weight: bold; width: 100%; border: none;
     }}
-    div.stButton > button:hover {{ transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,123,255,0.3); color: white; }}
     
-    /* Ввод данных */
+    /* Поля ввода (убираем серый налет) */
     .stTextInput input, .stSelectbox div {{
-        background-color: #1a1a1a !important; border: 1px solid #333 !important; 
+        background-color: #000000 !important; border: 2px solid #333 !important; 
         color: white !important; border-radius: 8px !important;
     }}
+    .stTextInput input:focus {{ border-color: #007BFF !important; }}
+    
+    /* Таблица */
+    [data-testid="stTable"] {{ background-color: #000000; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -67,54 +58,40 @@ def get_usage():
         return data if data["date"] == today else {"date": today, "count": 0}
     except: return {"date": today, "count": 0}
 
-def inc_usage():
-    data = get_usage()
-    data["count"] += 1
-    with open(LIMIT_FILE, "w") as f: json.dump(data, f)
-
-async def run_parser(target, days, limit, method):
+async def run_live_parser(target, days, limit, method, placeholder):
     client = TelegramClient(StringSession(MY_SESSION_STRING), API_ID, API_HASH)
     await client.connect()
+    
     results, seen = [], set()
+    table_st = st.empty() # Место для живой таблицы
 
     async def process(u):
         if not u or u.id in seen or getattr(u, 'bot', False): return
         seen.add(u.id)
-        path = "https://flaticon.com"
-        if u.photo:
-            p_name = f"{AVATAR_DIR}/{u.id}.jpg"
-            if not os.path.exists(p_name):
-                try: await client.download_profile_photo(u, file=p_name)
-                except: pass
-            if os.path.exists(p_name): path = p_name
         un = u.username or ""
         results.append({
-            "Фото": path,
-            "Имя": f"{u.first_name or ''} {u.last_name or ''}".strip() or "Скрыт",
-            "Юзернейм": f"@{un}" if un else "---",
-            "Открыть": f"tg://resolve?domain={un}" if un else f"tg://user?id={u.id}"
+            "Имя": f"{u.first_name or ''} {u.last_name or ''}".strip() or "User",
+            "Username": f"@{un}" if un else "---",
+            "Telegram": f"tg://resolve?domain={un}" if un else f"tg://user?id={u.id}"
         })
+        # Сразу обновляем таблицу на экране
+        table_st.dataframe(pd.DataFrame(results), column_config={"Telegram": st.column_config.LinkColumn()}, use_container_width=True)
 
     try:
         if "Все" in method:
-            alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
-            p_bar = st.progress(0)
-            for i, char in enumerate(alphabet):
-                p_bar.progress((i + 1) / len(alphabet))
-                try:
-                    res = await client(functions.channels.GetParticipantsRequest(
-                        channel=target, filter=types.ChannelParticipantsSearch(char),
-                        offset=0, limit=1000, hash=0
-                    ))
-                    for u in res.users: await process(u)
-                except: continue
-            p_bar.empty()
+            for char in "abcdefghijklmnopqrstuvwxyz0123456789":
+                res = await client(functions.channels.GetParticipantsRequest(
+                    channel=target, filter=types.ChannelParticipantsSearch(char),
+                    offset=0, limit=1000, hash=0
+                ))
+                for u in res.users: await process(u)
         else:
             limit_date = datetime.now(timezone.utc) - timedelta(days=days)
             async for m in client.iter_messages(target, limit=limit):
                 if m.date < limit_date: break
                 if m.sender_id: await process(await m.get_sender())
-    finally: await client.disconnect()
+    finally:
+        await client.disconnect()
     return results
 
 # --- ИНТЕРФЕЙС ---
@@ -124,69 +101,42 @@ if not st.session_state.auth:
     st.markdown('<div class="logo-box"><span class="vm-text">VM</span> <span class="models-text">Models</span></div>', unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1,1.2,1])
     with c2:
-        with st.form("login_ui"):
-            u = st.text_input("Логин")
-            p = st.text_input("Пароль", type="password")
-            if st.form_submit_button("ВОЙТИ В ПАНЕЛЬ"):
-                if u == "Admin.Maksym" and p == "Maksym777":
-                    st.session_state.auth = True
-                    st.rerun()
-                else: st.error("Ошибка доступа")
+        u = st.text_input("Username")
+        p = st.text_input("Password", type="password")
+        if st.button("LOGIN"):
+            if u == "Admin.Maksym" and p == "Maksym777":
+                st.session_state.auth = True
+                st.rerun()
 else:
-    st.markdown('<div class="logo-box" style="padding:10px 0;"><span class="vm-text" style="font-size:35px;">VM</span> <span class="models-text" style="font-size:35px;">Models</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="logo-box"><span class="vm-text" style="font-size:40px;">VM</span> <span class="models-text" style="font-size:40px;">Models</span></div>', unsafe_allow_html=True)
     
     usage = get_usage()
     with st.sidebar:
-        st.markdown("### 📊 Лимиты")
-        st.write(f"Сегодня: **{usage['count']} / {MAX_DAILY_PARSES}**")
-        st.progress(usage['count'] / MAX_DAILY_PARSES)
-        if st.button("Выйти"):
+        st.write(f"📊 Лимиты: **{usage['count']}/50**")
+        if st.button("Logout"):
             st.session_state.auth = False
             st.rerun()
 
-    tabs = st.tabs(["⚡️ СБОР", "📂 ИСТОРИЯ", "👥 КОМАНДА"])
+    method = st.radio("Выберите метод:", ["Активные (по сообщениям)", "Все участники (Глубокий)"], horizontal=True)
+    target = st.text_input("Ссылка на группу (напр. nakordoni_poland)")
     
-    with tabs[0]:
-        st.markdown('<div class="stFieldBlock">', unsafe_allow_html=True)
-        col_1, col_2 = st.columns(2)
-        with col_1:
-            method = st.radio("Метод:", ["Все участники (Глубокий)", "Активные по периоду"])
-            target = st.text_input("Ссылка на группу (напр. poehalisnami_de)")
-        with col_2:
-            if "Активные" in method:
-                period = st.selectbox("Период активности:", ["3 дня", "Неделя", "Месяц", "3 месяца"])
-                p_map = {"3 дня": 3, "Неделя": 7, "Месяц": 30, "3 месяца": 90}
-                days_val = p_map[period]
-                limit_val = 2000
-            else: days_val, limit_val = 0, 0
-        st.markdown('</div>', unsafe_allow_html=True)
+    if "Активные" in method:
+        period = st.selectbox("За какой срок искать?", ["3 дня", "Неделя", "Месяц"])
+        p_map = {"3 дня": 3, "Неделя": 7, "Месяц": 30}
+        days_val = p_map[period]
+    else: days_val = 0
 
-        if st.button("🚀 ЗАПУСТИТЬ ПАРСИНГ"):
-            if usage['count'] >= MAX_DAILY_PARSES: st.error("Дневной лимит (50) исчерпан")
-            elif not target: st.warning("Укажите ссылку на группу")
-            else:
-                with st.spinner('VM Models Scout в работе...'):
-                    try:
-                        loop = asyncio.get_event_loop()
-                    except:
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                    
-                    data = loop.run_until_complete(run_parser(target, days_val, limit_val, method))
-                    if data:
-                        inc_usage()
-                        df = pd.DataFrame(data)
-                        st.success(f"Найдено: {len(df)}")
-                        st.dataframe(df, column_config={
-                            "Фото": st.column_config.ImageColumn(),
-                            "Открыть": st.column_config.LinkColumn("Чат")
-                        }, use_container_width=True)
-                        st.download_button("📥 Скачать CSV", df.to_csv(index=False).encode('utf-8'), "vm_scout.csv")
+    if st.button("🚀 ЗАПУСТИТЬ ПОИСК"):
+        if not target: st.warning("Введите ссылку!")
+        else:
+            status = st.empty()
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            final_data = loop.run_until_complete(run_live_parser(target, days_val, 1500, method, status))
+            
+            if final_data:
+                st.success(f"Поиск завершен! Найдено: {len(final_data)}")
+                csv = pd.DataFrame(final_data).to_csv(index=False).encode('utf-8')
+                st.download_button("📥 СКАЧАТЬ РЕЗУЛЬТАТ", csv, "vm_export.csv")
 
-    with tabs[1]:
-        st.info("История будет доступна в следующем обновлении (требуется база данных).")
-
-    with tabs[2]:
-        st.write("👤 **Admin.Maksym** (Админ)")
-        st.write("👤 **Worker1** (Работник)")
 
