@@ -30,7 +30,8 @@ def save_db(db):
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(db, f, indent=4, ensure_ascii=False)
 
-if 'db' not in st.session_state: st.session_state.db = load_db()
+# Принудительная загрузка базы
+st.session_state.db = load_db()
 
 # --- АНТИ-ВЫЛЕТ (LOGIN PERSISTENCE) ---
 if 'auth' not in st.session_state:
@@ -39,52 +40,64 @@ if 'auth' not in st.session_state:
         match = next((x for x in st.session_state.db["users"] if x["login"] == u_url), None)
         if match: st.session_state.auth, st.session_state.user = True, match
 
-# --- СТИЛИЗАЦИЯ ---
+# --- СТИЛИЗАЦИЯ (СТРОГИЙ PREMIUM DARK) ---
 st.markdown("""
     <style>
     [data-testid="collapsedControl"] { display: none; }
     .stApp { background-color: #0d111b; color: #ffffff !important; }
+    
+    /* Логотип */
     .brand-vm { color: #007BFF !important; font-weight: 900; font-family: 'Arial Black'; }
     .brand-models { color: #ffffff !important; font-weight: 900; }
     
     /* Статусы */
-    .status-on { color: #00ff00 !important; font-weight: bold; }
-    .status-off { color: #ff3333 !important; font-weight: bold; }
+    .status-on { color: #00ff00 !important; font-weight: bold; text-transform: uppercase; }
+    .status-off { color: #ff3333 !important; font-weight: bold; text-transform: uppercase; }
     
+    /* Карточки Dashboard */
     .stat-card { background: #161b2c; border: 1px solid #232d45; border-radius: 12px; padding: 20px; text-align: center; }
-    .stat-label { color: #8a8d9b; font-size: 11px; text-transform: uppercase; font-weight: bold; }
+    .stat-label { color: #8a8d9b; font-size: 11px; text-transform: uppercase; font-weight: bold; margin-bottom: 8px; }
+    .stat-value { font-size: 18px; font-weight: 800; }
 
-    /* Темные строгие кнопки */
+    /* Темные строгие кнопки (Синий только при наведении) */
     div.stButton > button, div.stDownloadButton > button {
         background-color: #1f2937 !important; color: white !important; 
         border: 1px solid #374151 !important; border-radius: 8px !important;
         padding: 10px 20px !important; width: 100% !important; transition: 0.2s;
     }
-    div.stButton > button:hover { border-color: #007BFF !important; background-color: #111827 !important; }
+    div.stButton > button:hover, div.stDownloadButton > button:hover {
+        border-color: #007BFF !important; background-color: #111827 !important; transform: translateY(-1px);
+    }
     
     .stTabs [aria-selected="true"] { color: #007BFF !important; border-bottom-color: #007BFF !important; }
     .stTextInput input { background-color: #1a1a1a !important; border: 1px solid #333 !important; color: white !important; }
-    
-    /* Кликабельная ссылка */
     .instr-link { color: #007BFF !important; text-decoration: underline; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
+# --- УТИЛИТА ДЛЯ ЗАПУСКА ASYNC ---
 def run_sync(coro):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try: return loop.run_until_complete(coro)
     finally: loop.close()
 
+# --- ЛОГИКА ТЕЛЕГРАМ ---
 async def run_live_parser(u_data, target, days, method, placeholder):
     client = TelegramClient(StringSession(u_data['session']), int(u_data['api_id']), u_data['api_hash'])
     await client.connect()
     results, seen = [], set()
+    
     async def process(obj):
         if not obj or obj.id in seen or getattr(obj, 'bot', False): return
-        seen.add(obj.id); un = obj.username or ""
-        results.append({"ИМЯ": f"{obj.first_name or ''} {obj.last_name or ''}".strip(), "ЮЗЕРНЕЙМ": f"@{un}" if un else "---", "СВЯЗЬ": f"tg://resolve?domain={un}" if un else f"tg://user?id={obj.id}"})
+        seen.add(obj.id); un = getattr(obj, 'username', "") or ""
+        results.append({
+            "ИМЯ": f"{getattr(obj, 'first_name', 'User') or ''} {getattr(obj, 'last_name', '') or ''}".strip(),
+            "ЮЗЕРНЕЙМ": f"@{un}" if un else "---",
+            "СВЯЗЬ": f"tg://resolve?domain={un}" if un else f"tg://user?id={obj.id}"
+        })
         placeholder.dataframe(pd.DataFrame(results), column_config={"СВЯЗЬ": st.column_config.LinkColumn("ЧАТ 🔵")}, use_container_width=True, hide_index=True)
+
     try:
         if "Все" in method:
             for char in "abcdefghijklmnopqrstuvwxyz0123456789":
@@ -94,18 +107,21 @@ async def run_live_parser(u_data, target, days, method, placeholder):
             limit_date = datetime.now(timezone.utc) - timedelta(days=days)
             async for m in client.iter_messages(target, limit=2000):
                 if m.date < limit_date: break
-                if m.sender_id: await process(await m.get_sender())
+                if m.sender_id: 
+                    sender = await m.get_sender()
+                    await process(sender)
     finally: await client.disconnect()
     return results
 
 # --- ИНТЕРФЕЙС ---
 if not st.session_state.get('auth'):
-    st.markdown('<div style="text-align:center; padding-top:100px; margin-bottom:30px;"><span class="brand-vm" style="font-size:50px;">VM</span> <span class="brand-models" style="font-size:50px;">Models</span></div>', unsafe_allow_html=True)
+    # КРАСИВАЯ СТРАНИЦА ВХОДА
+    st.markdown('<div style="text-align:center; padding-top:80px; margin-bottom:30px;"><span class="brand-vm" style="font-size:50px;">VM</span> <span class="brand-models" style="font-size:50px;">Models</span></div>', unsafe_allow_html=True)
     _, col_login, _ = st.columns([1.5, 1, 1.5])
     with col_login:
         l_in = st.text_input("Username").strip()
         p_in = st.text_input("Password", type="password").strip()
-        if st.button("ENTER"):
+        if st.button("LOGIN TO SYSTEM"):
             st.session_state.db = load_db()
             user = next((x for x in st.session_state.db["users"] if x["login"] == l_in and x["pass"] == p_in), None)
             if user:
@@ -115,20 +131,22 @@ if not st.session_state.get('auth'):
             else: st.error("Access Denied")
 else:
     u = st.session_state.user
+    # ХЕДЕР
     st.markdown(f'<div style="display:flex; justify-content:space-between; align-items:center; padding:15px; border-bottom:1px solid #232d45; margin-bottom:20px;"><div style="font-size:24px;"><span class="brand-vm">VM</span> <span class="brand-models">Models</span></div><div style="color:#8a8d9b; font-size:14px;">{u.get("role")}: <b>{u["login"]}</b></div></div>', unsafe_allow_html=True)
 
+    # ДАШБОРД (ТРИ КАРТОЧКИ)
     tg_name = u.get("tg_name", "")
-    tg_stat = f'<span class="status-on">ПОДКЛЮЧЕН</span><br><small style="color:#8a8d9b;">{tg_name}</small>' if u.get("session") else '<span class="status-off">НЕ ПОДКЛЮЧЕН</span>'
+    tg_stat_html = f'<span class="status-on">ПОДКЛЮЧЕН</span><br><small style="color:#8a8d9b;">{tg_name}</small>' if u.get("session") else '<span class="status-off">НЕ ПОДКЛЮЧЕН</span>'
     
     cs1, cs2, cs3 = st.columns(3)
-    cs1.markdown(f'<div class="stat-card"><div class="stat-label">Аккаунт</div><div style="font-size:18px; font-weight:bold;">{u["login"]}</div></div>', unsafe_allow_html=True)
-    cs2.markdown(f'<div class="stat-card"><div class="stat-label">Telegram Status</div><div style="font-size:18px;">{tg_stat}</div></div>', unsafe_allow_html=True)
-    cs3.markdown(f'<div class="stat-card"><div class="stat-label">Лимит (24ч)</div><div style="font-size:18px; font-weight:bold;">{u.get("limit", 0)} / 50</div></div>', unsafe_allow_html=True)
+    cs1.markdown(f'<div class="stat-card"><div class="stat-label">Аккаунт</div><div class="stat-value">{u["login"]}</div></div>', unsafe_allow_html=True)
+    cs2.markdown(f'<div class="stat-card"><div class="stat-label">Telegram Status</div><div class="stat-value">{tg_stat_html}</div></div>', unsafe_allow_html=True)
+    cs3.markdown(f'<div class="stat-card"><div class="stat-label">Лимит (24ч)</div><div class="stat-value">{u.get("limit", 0)} / 50</div></div>', unsafe_allow_html=True)
 
     tabs = st.tabs(["⚡ СБОР", "📱 АККАУНТ", "📜 ИСТОРИЯ", "👥 КОМАНДА", "🚪 ВЫХОД"])
 
     with tabs[0]: # СБОР
-        sess_key = u.get("session")
+        sess_key = u.get("session", ADMIN_SESSION if u["role"] == "Админ" else "")
         if not sess_key: st.warning("⚠️ Сначала подключите Telegram во вкладке АККАУНТ")
         else:
             st.markdown('<div style="background:#161b2c; padding:25px; border-radius:12px; border:1px solid #232d45;">', unsafe_allow_html=True)
@@ -142,30 +160,31 @@ else:
                     days_v = {"3 дня": 3, "7 дней": 7, "Месяц": 30, "3 месяца": 90}[per]
             if st.button("🚀 ЗАПУСТИТЬ ПРОЦЕСС"):
                 if target:
-                    if u.get('limit', 0) >= 50: st.error("Лимит исчерпан!")
+                    if u.get('limit', 0) >= 50: st.error("Дневной лимит (50) исчерпан!")
                     else:
                         ph = st.empty(); data = run_sync(run_live_parser(u, target, days_v, method, ph))
                         if data:
                             for db_u in st.session_state.db["users"]:
-                                if db_u["login"] == u["login"]: db_u["limit"] += 1; st.session_state.user["limit"] = db_u["limit"]
+                                if db_u["login"] == u["login"]: 
+                                    db_u["limit"] += 1; st.session_state.user["limit"] = db_u["limit"]
                             st.session_state.db["history"].append({"user": u["login"], "target": target, "count": len(data), "date": datetime.now().strftime("%d.%m %H:%M")})
                             save_db(st.session_state.db)
                             txt_out = "\n".join([i['ЮЗЕРНЕЙМ'] for i in data if i['ЮЗЕРНЕЙМ'] != "---"])
                             st.download_button("📥 СКАЧАТЬ В БЛОКНОТ (@)", txt_out, "usernames.txt")
             st.markdown('</div>', unsafe_allow_html=True)
 
-    with tabs[1]: # АККАУНТ (ССЫЛКА ТУТ)
+    with tabs[1]: # АККАУНТ
         st.subheader("Подключение Telegram")
-        if u.get("session"):
+        if u.get("session") and u["role"] != "Админ":
             st.success(f"✅ Аккаунт привязан: {u.get('tg_name')}")
             if st.button("Отключить"):
                 for db_u in st.session_state.db["users"]:
                     if db_u["login"] == u["login"]: db_u["session"], db_u["tg_name"] = "", ""
                 save_db(st.session_state.db); st.rerun()
+        elif u["role"] == "Админ": st.success("✅ Админ-аккаунт активен автоматически.")
         else:
             st.markdown('<div style="background:#161b2c; padding:25px; border-radius:15px; border:1px solid #232d45; margin-bottom:20px;">', unsafe_allow_html=True)
-            st.markdown('<b>Где взять данные?</b><br>1. Перейди на <a href="https://my.telegram.org" target="_blank" class="instr-link">https://my.telegram.org</a><br>2. Авторизуйся и выбери <b>API development tools</b><br>3. Создай приложение и скопируй API ID и API Hash.', unsafe_allow_html=True)
-            st.write("")
+            st.markdown('<b>Где взять данные?</b><br>1. Перейди на <a href="https://telegram.org" target="_blank" class="instr-link">https://telegram.org</a><br>2. API development tools -> Создай приложение -> Скопируй API ID и API Hash.', unsafe_allow_html=True)
             aid = st.text_input("API ID")
             ahash = st.text_input("API HASH")
             phone = st.text_input("НОМЕР ТЕЛЕФОНА (с +)")
@@ -193,13 +212,17 @@ else:
 
     with tabs[3]: # КОМАНДА
         if u["role"] == "Админ":
-            nl, np = st.text_input("Логин"), st.text_input("Пароль")
-            if st.button("Создать доступ"): st.session_state.db["users"].append({"login": nl, "pass": np, "role": "Работник", "session": "", "tg_name": "", "limit": 0}); save_db(st.session_state.db); st.rerun()
-            for i, worker in enumerate(st.session_state.db["users"]):
-                if worker["role"] != "Админ":
-                    with st.expander(f"👤 {worker['login']} ({worker.get('limit',0)}/50)"):
-                        if st.button("Удалить", key=f"del_{i}"): st.session_state.db["users"].pop(i); save_db(st.session_state.db); st.rerun()
+            col1, col2 = st.columns(2)
+            with col1:
+                nl, np = st.text_input("Логин"), st.text_input("Пароль")
+                if st.button("Создать доступ"): st.session_state.db["users"].append({"login": nl, "pass": np, "role": "Работник", "session": "", "tg_name": "", "limit": 0}); save_db(st.session_state.db); st.rerun()
+            with col2:
+                for i, worker in enumerate(st.session_state.db["users"]):
+                    if worker["role"] != "Админ":
+                        with st.expander(f"👤 {worker['login']} ({worker.get('limit',0)}/50)"):
+                            if st.button("Удалить", key=f"del_{i}"): st.session_state.db["users"].pop(i); save_db(st.session_state.db); st.rerun()
         else: st.info("Только для админа.")
 
     with tabs[4]: # ВЫХОД
-        if st.button("ПОДТВЕРДИТЬ ВЫХОД"): st.query_params.clear(); st.session_state.clear(); st.rerun()
+        if st.button("ПОДТВЕРДИТЬ ВЫХОД"):
+            st.query_params.clear(); st.session_state.clear(); st.rerun()
