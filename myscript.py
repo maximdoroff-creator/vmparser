@@ -8,107 +8,90 @@ from datetime import datetime, timedelta, timezone
 api_id = 34321415 
 api_hash = 'a858399e90e04f5992a97096b614f31e'
 
+# Эта строка заставляет Streamlit обновиться
+st.cache_data.clear()
+
 st.set_page_config(page_title="TG Scout Admin Panel", layout="wide")
 
-# --- БАЗА ПОЛЬЗОВАТЕЛЕЙ (В памяти сессии) ---
+# --- БАЗА ПОЛЬЗОВАТЕЛЕЙ ---
 if 'users_db' not in st.session_state:
     st.session_state.users_db = [
         {"login": "Admin.Maksym", "pass": "Maksym777", "role": "Админ"},
-        {"login": "Sophia_Tabachenko", "pass": "work123", "role": "Работник"},
-        {"login": "Rusya_Golik", "pass": "work456", "role": "Работник"}
+        {"login": "Sophia_Tabachenko", "pass": "work123", "role": "Работник"}
     ]
 
 if 'auth' not in st.session_state:
     st.session_state.auth = False
     st.session_state.user_data = None
 
-# --- СТИЛИЗАЦИЯ (Цвета со скрина) ---
+# --- СТИЛИЗАЦИЯ ПОД ВАШИ СКРИНШОТЫ ---
 st.markdown("""
     <style>
     .stApp { background-color: #0f111a; }
-    .stButton>button { border-radius: 8px; font-weight: bold; }
-    .pink-button>button { background-color: #ff4b91 !important; color: white !important; height: 3em; width: 100%; border: none; }
-    .delete-button>button { background-color: transparent !important; color: #ff4b4b !important; border: none !important; text-align: right; }
-    .user-card { background-color: #1a1c24; padding: 15px; border-radius: 10px; margin-bottom: 10px; border: 1px solid #2d2f39; }
-    .sidebar-card { background-color: #161922; padding: 20px; border-radius: 15px; border: 1px solid #2d2f39; }
-    input { background-color: #1a1c24 !important; color: white !important; border: 1px solid #2d2f39 !important; }
+    .stTabs [data-baseweb="tab-list"] { gap: 24px; }
+    .stTabs [data-baseweb="tab"] { height: 50px; background-color: #1a1c24; border-radius: 10px 10px 0 0; color: white; padding: 0 30px; }
+    .stButton>button { border-radius: 8px; font-weight: bold; background-color: #ff4b91; color: white; border: none; width: 100%; height: 3.5em; }
+    .stButton>button:hover { background-color: #ff85b3; color: white; }
+    .user-card { background-color: #1a1c24; padding: 15px; border-radius: 10px; border: 1px solid #2d2f39; margin-bottom: 10px; }
+    div[data-testid="stMetric"] { background-color: #1a1c24; border-radius: 15px; padding: 15px; border: 1px solid #2d2f39; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- ЭКРАН ВХОДА ---
+# --- ЛОГИКА ВХОДА ---
 if not st.session_state.auth:
-    c1, c2, c3 = st.columns([1, 2, 1])
-    with c2:
-        st.markdown('<div style="text-align:center; margin-top:100px;">', unsafe_allow_html=True)
-        st.title("Вход в систему")
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("<h1 style='text-align:center;'>Вход в систему</h1>", unsafe_allow_html=True)
         l = st.text_input("ЛОГИН")
         p = st.text_input("ПАРОЛЬ", type="password")
-        if st.button("ВОЙТИ", key="login_btn"):
+        if st.button("ВОЙТИ"):
             user = next((u for u in st.session_state.users_db if u["login"] == l and u["pass"] == p), None)
             if user:
                 st.session_state.auth = True
                 st.session_state.user_data = user
                 st.rerun()
             else:
-                st.error("Ошибка доступа")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-# --- ГЛАВНЫЙ ИНТЕРФЕЙС ---
+                st.error("Неверные данные доступа")
 else:
-    # Верхнее меню как на скрине
-    tabs_list = ["ИНСТРУКЦИЯ", "🔐 МОИ ЧАТЫ", "📊 СБОР", "📂 ИСТОРИЯ"]
-    if st.session_state.user_data["role"] == "Админ":
-        tabs_list.append("👥 КОМАНДА")
-    
-    tabs = st.tabs(tabs_list)
+    # --- ВЕРХНЯЯ ПАНЕЛЬ СТАТИСТИКИ ---
+    c1, c2, c3 = st.columns(3)
+    with c1: st.metric("Пользователь", st.session_state.user_data['login'])
+    with c2: st.metric("Статус Telegram", "Подключен ✅")
+    with c3: st.metric("Роль", st.session_state.user_data['role'])
 
-    # --- ВКЛАДКА КОМАНДА (ТОЛЬКО АДМИН) ---
+    # --- ВКЛАДКИ ---
+    t_list = ["ИНСТРУКЦИЯ", "⚡️ СБОР", "📂 ИСТОРИЯ"]
+    if st.session_state.user_data["role"] == "Админ":
+        t_list.append("👥 КОМАНДА")
+    
+    tabs = st.tabs(t_list)
+
+    # Вкладка КОМАНДА
     if st.session_state.user_data["role"] == "Админ":
         with tabs[-1]:
-            col_left, col_right = st.columns([1, 2])
-            
-            with col_left:
-                st.markdown("### + Добавить")
-                with st.container():
-                    new_login = st.text_input("ЛОГИН", key="new_l")
-                    new_pass = st.text_input("ПАРОЛЬ", key="new_p")
-                    new_role = st.selectbox("РОЛЬ", ["Работник", "Админ"])
-                    st.markdown('<div class="pink-button">', unsafe_allow_html=True)
-                    if st.button("Создать"):
-                        if new_login and new_pass:
-                            st.session_state.users_db.append({"login": new_login, "pass": new_pass, "role": new_role})
-                            st.success("Добавлен!")
-                            st.rerun()
-                    st.markdown('</div>', unsafe_allow_html=True)
+            cl, cr = st.columns([1, 2])
+            with cl:
+                st.subheader("+ Добавить")
+                nl = st.text_input("НОВЫЙ ЛОГИН")
+                np = st.text_input("НОВЫЙ ПАРОЛЬ")
+                nr = st.selectbox("РОЛЬ", ["Работник", "Админ"])
+                if st.button("Создать аккаунт"):
+                    st.session_state.users_db.append({"login": nl, "pass": np, "role": nr})
+                    st.success("Добавлен!")
+                    st.rerun()
+            with cr:
+                st.subheader("Структура команды")
+                for u in st.session_state.users_db:
+                    st.markdown(f'<div class="user-card"><b>{u["login"]}</b> — {u["role"]}</div>', unsafe_allow_html=True)
 
-            with col_right:
-                st.markdown("### Структура команды")
-                for i, user in enumerate(st.session_state.users_db):
-                    c_user, c_del = st.columns([3, 1])
-                    with c_user:
-                        st.markdown(f"""
-                        <div class="user-card">
-                            <b style="font-size:18px;">{user['login']}</b><br>
-                            <span style="color:gray; font-size:12px;">{user['role'].lower()}</span>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    with c_del:
-                        st.markdown('<div class="delete-button">', unsafe_allow_html=True)
-                        if st.button("Удалить", key=f"del_{i}"):
-                            st.session_state.users_db.pop(i)
-                            st.rerun()
-                        st.markdown('</div>', unsafe_allow_html=True)
-
-    # --- ВКЛАДКА СБОР (РАБОЧАЯ) ---
-    with tabs[2]:
-        st.markdown("### Сбор аудитории")
-        target = st.text_input("Ссылка на чат")
-        if st.button("ЗАПУСТИТЬ", key="run_btn"):
-            st.info("Парсинг запущен...")
-            # Твоя логика Telethon здесь...
+    # Вкладка СБОР
+    with tabs[1]:
+        st.subheader("Настройки парсинга")
+        target = st.text_input("Ссылка на группу")
+        if st.button("ЗАПУСТИТЬ ПРОЦЕСС"):
+            st.info("Парсинг запущен от имени " + st.session_state.user_data['login'])
 
     with st.sidebar:
-        st.write(f"Вы вошли как: **{st.session_state.user_data['login']}**")
         if st.button("Выйти"):
             st.session_state.auth = False
             st.rerun()
