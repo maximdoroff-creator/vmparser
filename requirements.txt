@@ -2,3 +2,4 @@ telethon
 streamlit
 pandas
 openpyxl
+Pillow
