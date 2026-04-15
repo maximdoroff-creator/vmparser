@@ -178,7 +178,7 @@ else:
                     if d["login"] == u["login"]: d["session"], d["tg_name"] = "", ""
                 save_db(db); st.rerun()
         else:
-            st.markdown('Ссылка: <a href="https://my.telegram.org" target="_blank" style="color:#007BFF;">https://telegram.org</a>', unsafe_allow_html=True)
+            st.markdown('Ссылка: <a href="https://my.telegram.org." target="_blank" style="color:#007BFF;">https://telegram.org</a>', unsafe_allow_html=True)
             aid, ahash, phone = st.text_input("API ID"), st.text_input("API HASH"), st.text_input("ТЕЛЕФОН")
             if st.button("ПОЛУЧИТЬ КОД"):
                 async def get_c():
