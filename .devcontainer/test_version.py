@@ -86,27 +86,64 @@ async def run_live_parser(u_data, target, days, method, placeholder):
     client = TelegramClient(StringSession(u_data['session']), int(u_data['api_id']), u_data['api_hash'])
     await client.connect()
     results, seen = [], set()
+
     async def process(obj):
         if not obj or obj.id in seen or getattr(obj, 'bot', False): return
-        seen.add(obj.id); un = getattr(obj, 'username', "") or ""
+        seen.add(obj.id)
+        un = getattr(obj, 'username', "") or ""
+        
+        # --- НОВАЯ ЛОГИКА: BIO И РЕЙТИНГ ---
+        bio = "---"
+        priority = "⚪ Обычный"
+        try:
+            # Запрашиваем полную информацию о пользователе (включая Bio)
+            full_u = await client(functions.users.GetFullUserRequest(id=obj.id))
+            bio = full_u.full_user.about or ""
+            
+            b_low = bio.lower()
+            # Умный фильтр для скаутов
+            if any(w in b_low for w in ['inst', 'model', '@', 'agency', 'photo', 'lifestyle', 'travel']):
+                priority = "🌟 ПРИОРИТЕТ"
+            elif len(bio) > 3:
+                priority = "✅ С описанием"
+        except: pass 
+
         results.append({
+            "⭐": priority,
             "ИМЯ": f"{getattr(obj, 'first_name', 'User') or ''} {getattr(obj, 'last_name', '') or ''}".strip(),
+            "BIO": bio,
             "ЮЗЕРНЕЙМ": f"@{un}" if un else "---",
             "СВЯЗЬ": f"tg://resolve?domain={un}" if un else f"tg://user?id={obj.id}"
         })
-        placeholder.dataframe(pd.DataFrame(results), column_config={"СВЯЗЬ": st.column_config.LinkColumn("ЧАТ 🔵")}, use_container_width=True, hide_index=True)
+        
+        # Обновляем таблицу с новыми колонками
+        placeholder.dataframe(
+            pd.DataFrame(results), 
+            column_config={
+                "СВЯЗЬ": st.column_config.LinkColumn("ЧАТ 🔵"),
+                "⭐": st.column_config.TextColumn("Рейтинг"),
+                "BIO": st.column_config.TextColumn("О себе")
+            }, 
+            use_container_width=True, 
+            hide_index=True
+        )
+
     try:
         if "Все" in method:
+            # Твоя логика сбора всех участников
             for char in "abcdefghijklmnopqrstuvwxyz0123456789":
                 res = await client(functions.channels.GetParticipantsRequest(channel=target, filter=types.ChannelParticipantsSearch(char), offset=0, limit=1000, hash=0))
                 for p in res.users: await process(p)
         else:
+            # Твоя логика сбора активных
             limit_date = datetime.now(timezone.utc) - timedelta(days=days)
             async for m in client.iter_messages(target, limit=2000):
                 if m.date < limit_date: break
                 if m.sender_id: await process(await m.get_sender())
-    finally: await client.disconnect()
+    finally:
+        await client.disconnect()
     return results
+
 
 # --- ЭКРАН ВХОДА ---
 if not st.session_state.get('auth'):
