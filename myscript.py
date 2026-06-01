@@ -181,9 +181,8 @@ else:
             st.markdown('Ссылка: <a href="https://my.telegram.org" target="_blank" style="color:#007BFF;">https://my.telegram.org</a>', unsafe_allow_html=True)
             aid, ahash, phone = st.text_input("API ID"), st.text_input("API HASH"), st.text_input("ТЕЛЕФОН")
             if st.button("ПОЛУЧИТЬ КОД"):
-                async def get_c():
-            # Маскируем запрос под обычное приложение на Android
-            c = TelegramClient(
+            async def get_c():
+                  c = TelegramClient(
                 StringSession(), 
                 int(aid), 
                 ahash,
@@ -192,17 +191,18 @@ else:
                 app_version="10.3.2",
                 lang_code="ru",
                 system_lang_code="ru-RU"
-            )
-            await c.connect()
-            res = await c.send_code_request(phone)
-            return c.session.save(), res.phone_code_hash
+                  )
+                  await c.connect()
+                  res = await c.send_code_request(phone)
+                  return c.session.save(), res.phone_code_hash
 
-        s, h = run_sync(get_c())
-        st.session_state.tmp_s = s
-        st.session_state.tmp_h = h
-        st.session_state.tmp_p = phone
-        st.session_state.tmp_id = int(aid)   # Сохраняем API ID
-        st.session_state.tmp_hash = ahash    # Сохраняем API HASH
+              s, h = run_sync(get_c())
+              st.session_state.tmp_s = s
+              st.session_state.tmp_h = h
+              st.session_state.tmp_p = phone
+              st.session_state.tmp_id = int(aid)
+              st.session_state.tmp_hash = ahash
+
 
             tc = st.text_input("КОД")
             if st.button("АКТИВИРОВАТЬ"):
