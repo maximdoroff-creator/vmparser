@@ -182,21 +182,54 @@ else:
             aid, ahash, phone = st.text_input("API ID"), st.text_input("API HASH"), st.text_input("ТЕЛЕФОН")
             if st.button("ПОЛУЧИТЬ КОД"):
                 async def get_c():
-                    c = TelegramClient(StringSession(), int(aid), ahash); await c.connect()
-                    res = await c.send_code_request(phone); return c.session.save(), res.phone_code_hash
-                s, h = run_sync(get_c()); st.session_state.tmp_s, st.session_state.tmp_h, st.session_state.tmp_p, st.session_state.tmp_id, st.session_state.tmp_hash = s, h, phone, aid, ahash
-                st.info("Код отправлен!")
+            # Маскируем запрос под обычное приложение на Android
+            c = TelegramClient(
+                StringSession(), 
+                int(aid), 
+                ahash,
+                device_model="Xiaomi Redmi Note 12",
+                system_version="Android 13",
+                app_version="10.3.2",
+                lang_code="ru",
+                system_lang_code="ru-RU"
+            )
+            await c.connect()
+            res = await c.send_code_request(phone)
+            return c.session.save(), res.phone_code_hash
+
+        s, h = run_sync(get_c())
+        st.session_state.tmp_s = s
+        st.session_state.tmp_h = h
+        st.session_state.tmp_p = phone
+        st.session_state.tmp_id = int(aid)   # Сохраняем API ID
+        st.session_state.tmp_hash = ahash    # Сохраняем API HASH
+
             tc = st.text_input("КОД")
             if st.button("АКТИВИРОВАТЬ"):
-                async def finish():
-                    c = TelegramClient(StringSession(st.session_state.tmp_s), int(st.session_state.tmp_id), st.session_state.tmp_hash)
-                    await c.connect(); await c.sign_in(st.session_state.tmp_p, tc, phone_code_hash=st.session_state.tmp_h)
-                    me = await c.get_me(); uname = f"@{me.username}" if me.username else me.first_name
-                    db = load_db()
-                    for d in db["users"]:
-                        if d["login"] == u["login"]: d["session"], d["tg_name"], d["api_id"], d["api_hash"] = c.session.save(), uname, st.session_state.tmp_id, st.session_state.tmp_hash
-                    save_db(db)
-                run_sync(finish()); st.rerun()
+                        async def finish():
+            c = TelegramClient(
+                StringSession(st.session_state.tmp_s), 
+                int(st.session_state.tmp_id), 
+                st.session_state.tmp_hash,
+                device_model="Xiaomi Redmi Note 12",
+                system_version="Android 13",
+                app_version="10.3.2",
+                lang_code="ru",
+                system_lang_code="ru-RU"
+            )
+            await c.connect()
+            await c.sign_in(st.session_state.tmp_p, tc, phone_code_hash=st.session_state.tmp_h)
+            me = await c.get_me()
+            uname = f"@{me.username}" if me.username else me.first_name
+            db = load_db()
+            for d in db["users"]:
+                if d["login"] == u["login"]:
+                    d["session"] = c.session.save()
+                    d["tg_name"] = uname
+                    d["api_id"] = st.session_state.tmp_id
+                    d["api_hash"] = st.session_state.tmp_hash
+            save_db(db)
+
 
     with tabs[2]: # ИСТОРИЯ
         st.subheader("Ваша история")
