@@ -196,12 +196,12 @@ else:
                       res = await c.send_code_request(phone)
                       return c.session.save(), res.phone_code_hash
 
-              s, h = run_sync(get_c())
-              st.session_state.tmp_s = s
-              st.session_state.tmp_h = h
-              st.session_state.tmp_p = phone
-              st.session_state.tmp_id = int(aid)
-              st.session_state.tmp_hash = ahash
+                s, h = run_sync(get_c())
+                st.session_state.tmp_s = s
+                st.session_state.tmp_h = h
+                st.session_state.tmp_p = phone
+                st.session_state.tmp_id = int(aid)
+                st.session_state.tmp_hash = ahash
 
 
             tc = st.text_input("КОД")
